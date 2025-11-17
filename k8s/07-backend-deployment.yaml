@@ -1,0 +1,178 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: todoapp-backend
+  namespace: todoapp
+  labels:
+    app: todoapp-backend
+    tier: application
+    version: v1
+spec:
+  replicas: 3
+
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+
+  selector:
+    matchLabels:
+      app: todoapp-backend
+      tier: application
+
+  template:
+    metadata:
+      labels:
+        app: todoapp-backend
+        tier: application
+        version: v1
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "3000"
+
+    spec:
+      serviceAccountName: backend-sa
+
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            preference:
+              matchExpressions:
+              - key: node-type
+                operator: In
+                values:
+                - application
+
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - todoapp-backend
+              topologyKey: kubernetes.io/hostname
+
+      initContainers:
+      - name: wait-for-mysql
+        image: busybox:1.35
+        command:
+        - sh
+        - -c
+        - |
+          until nc -z mysql.todoapp.svc.cluster.local 3306; do
+            echo "MySQL not ready yet..."
+            sleep 2
+          done
+          echo "MySQL is ready!"
+
+      containers:
+      - name: backend
+        image: todoapp-backend:1.0.0
+        imagePullPolicy: IfNotPresent
+
+        ports:
+        - containerPort: 3000
+          name: http
+          protocol: TCP
+
+        envFrom:
+        - configMapRef:
+            name: backend-config
+
+        env:
+        - name: MYSQL_USER
+          valueFrom:
+            secretKeyRef:
+              name: mysql-secret
+              key: MYSQL_USER
+        - name: MYSQL_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mysql-secret
+              key: MYSQL_PASSWORD
+
+        resources:
+          requests:
+            cpu: 200m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+
+        livenessProbe:
+          httpGet:
+            path: /items
+            port: 3000
+          initialDelaySeconds: 15
+          periodSeconds: 20
+          timeoutSeconds: 5
+          failureThreshold: 3
+
+        readinessProbe:
+          httpGet:
+            path: /items
+            port: 3000
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 3
+
+        startupProbe:
+          httpGet:
+            path: /items
+            port: 3000
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          failureThreshold: 30
+
+        volumeMounts:
+        - name: logs
+          mountPath: /app/logs
+
+      - name: log-collector
+        image: busybox:1.35
+        command:
+        - sh
+        - -c
+        - |
+          echo "Log collector started"
+          tail -f /logs/*.log 2>/dev/null || sleep infinity
+        volumeMounts:
+        - name: logs
+          mountPath: /logs
+
+        # FIXED RESOURCES
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
+
+      volumes:
+      - name: logs
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: todoapp-backend
+  namespace: todoapp
+  labels:
+    app: todoapp-backend
+    tier: application
+spec:
+  type: ClusterIP
+  ports:
+  - port: 3000
+    targetPort: 3000
+    protocol: TCP
+    name: http
+  selector:
+    app: todoapp-backend
+    tier: application

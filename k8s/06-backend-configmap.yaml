@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-config
+  namespace: todoapp
+  labels:
+    app: todoapp-backend
+    tier: application
+data:
+  # Application configuration
+  NODE_ENV: "production"
+  PORT: "3000"
+  API_VERSION: "v1"
+  
+  # Database configuration
+  MYSQL_HOST: "mysql.todoapp.svc.cluster.local"
+  MYSQL_DB: "todos"

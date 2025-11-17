@@ -1,0 +1,27 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: todoapp-backend-pdb
+  namespace: todoapp
+  labels:
+    app: todoapp-backend
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: todoapp-backend
+      tier: application
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: mysql-pdb
+  namespace: todoapp
+  labels:
+    app: mysql
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: mysql
+      tier: database

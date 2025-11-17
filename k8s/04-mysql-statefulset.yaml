@@ -1,0 +1,146 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql
+  namespace: todoapp
+  labels:
+    app: mysql
+    tier: database
+spec:
+  ports:
+  - port: 3306
+    name: mysql
+  clusterIP: None  # Headless service
+  selector:
+    app: mysql
+    tier: database
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mysql
+  namespace: todoapp
+  labels:
+    app: mysql
+    tier: database
+spec:
+  serviceName: mysql
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mysql
+      tier: database
+  template:
+    metadata:
+      labels:
+        app: mysql
+        tier: database
+    spec:
+      # Init container - database initialization
+      initContainers:
+      - name: init-db-check
+        image: mysql:8.0
+        command: 
+        - sh
+        - -c
+        - |
+          echo "Checking MySQL initialization..."
+          if [ ! -d /var/lib/mysql/mysql ]; then
+            echo "First time initialization"
+          else
+            echo "Database already initialized"
+          fi
+        volumeMounts:
+        - name: mysql-data
+          mountPath: /var/lib/mysql
+      
+      containers:
+      - name: mysql
+        image: mysql:8.0
+        ports:
+        - containerPort: 3306
+          name: mysql
+        
+        # Environment variables from Secret
+        env:
+        - name: MYSQL_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mysql-secret
+              key: MYSQL_ROOT_PASSWORD
+        - name: MYSQL_DATABASE
+          valueFrom:
+            secretKeyRef:
+              name: mysql-secret
+              key: MYSQL_DATABASE
+        
+        # Resource limits
+        resources:
+          requests:
+            cpu: 250m
+            memory: 512Mi
+          limits:
+            cpu: 500m
+            memory: 1Gi
+        
+        # Liveness probe
+        livenessProbe:
+          exec:
+            command:
+            - mysqladmin
+            - ping
+            - -h
+            - localhost
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        
+        # Readiness probe
+        readinessProbe:
+          exec:
+            command:
+            - mysql
+            - -h
+            - 127.0.0.1
+            - -e
+            - SELECT 1
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 2
+        
+        # Startup probe
+        startupProbe:
+          exec:
+            command:
+            - sh
+            - -c
+            - mysqladmin ping -h localhost -proot || exit 1
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          failureThreshold: 60  # 10 minutes total
+        
+        # Volume mounts
+        volumeMounts:
+        - name: mysql-data
+          mountPath: /var/lib/mysql
+        - name: mysql-config
+          mountPath: /etc/mysql/conf.d
+      
+      volumes:
+      - name: mysql-config
+        configMap:
+          name: mysql-config
+  
+  # Volume claim templates
+  volumeClaimTemplates:
+  - metadata:
+      name: mysql-data
+      labels:
+        app: mysql
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      storageClassName: standard  # Minikube default storage class
+      resources:
+        requests:
+          storage: 5Gi
