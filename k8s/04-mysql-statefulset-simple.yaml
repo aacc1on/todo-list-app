@@ -55,7 +55,7 @@ spec:
               name: mysql-secret
               key: MYSQL_DATABASE
         
-        # Resources - ավելի փոքր Minikube-ի համար
+        # Resources allocation
         resources:
           requests:
             cpu: 100m
@@ -109,4 +109,4 @@ spec:
       storageClassName: standard
       resources:
         requests:
-          storage: 2Gi  # Փոքր Minikube-ի համար
+          storage: 2Gi  

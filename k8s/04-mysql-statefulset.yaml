@@ -10,7 +10,7 @@ spec:
   ports:
   - port: 3306
     name: mysql
-  clusterIP: None  # Headless service
+  clusterIP: None  
   selector:
     app: mysql
     tier: database
@@ -140,7 +140,7 @@ spec:
         app: mysql
     spec:
       accessModes: [ "ReadWriteOnce" ]
-      storageClassName: standard  # Minikube default storage class
+      storageClassName: standard  
       resources:
         requests:
           storage: 5Gi

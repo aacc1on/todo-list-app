@@ -7,12 +7,12 @@ metadata:
     app: todoapp
   annotations:
     nginx.ingress.kubernetes.io/rewrite-target: /
-    nginx.ingress.kubernetes.io/ssl-redirect: "false"  # Minikube-ի համար
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"  
     nginx.ingress.kubernetes.io/rate-limit: "100"
 spec:
   ingressClassName: nginx
   rules:
-  - host: todoapp.local  # /etc/hosts-ում ավելացնել
+  - host: todoapp.local
     http:
       paths:
       - path: /
